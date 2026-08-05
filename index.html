@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Clinic Chart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F3F5F2;
+    --card:#FFFFFF;
+    --ink:#152B2B;
+    --ink-soft:#5C6E6C;
+    --line:#E0E6E2;
+    --teal:#2F6F6B;
+    --teal-dark:#1E4A47;
+    --teal-tint:#E6EEEC;
+    --amber:#E8A33D;
+    --amber-tint:#FBF0DC;
+    --danger:#C1443C;
+    --danger-tint:#FBE9E7;
+    --radius:14px;
+    --shadow: 0 1px 2px rgba(21,43,43,0.06), 0 4px 14px rgba(21,43,43,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);position:relative;}
+
+  /* Top bar */
+  .topbar{
+    padding:18px 18px 14px;
+    background:linear-gradient(180deg, var(--teal-dark), var(--teal));
+    color:#fff;
+    position:sticky; top:0; z-index:20;
+  }
+  .topbar .clinic-name{font-size:20px; font-weight:600; letter-spacing:0.2px;}
+  .topbar .doctor-name{font-size:12.5px; opacity:0.85; margin-top:2px;}
+  .topbar-row{display:flex; justify-content:space-between; align-items:flex-start;}
+  .icon-btn{
+    background:rgba(255,255,255,0.14); border:none; border-radius:10px;
+    width:36px;height:36px; display:flex;align-items:center;justify-content:center;
+    color:#fff; font-size:16px;
+  }
+  .search-wrap{margin-top:12px;}
+  .search-wrap input{
+    width:100%; border:none; border-radius:10px; padding:10px 12px;
+    font-size:14px; background:rgba(255,255,255,0.16); color:#fff;
+  }
+  .search-wrap input::placeholder{color:rgba(255,255,255,0.75);}
+
+  main{flex:1; padding:14px 14px 90px; overflow-y:auto;}
+
+  /* Cards */
+  .card{
+    background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:14px; margin-bottom:10px; border:1px solid var(--line);
+  }
+  .patient-card{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .patient-card .name{font-family:'Fraunces',serif; font-weight:600; font-size:16.5px;}
+  .patient-card .meta{font-size:12.5px; color:var(--ink-soft); margin-top:3px;}
+  .chev{color:var(--ink-soft); font-size:18px;}
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--ink-soft);
+  }
+  .empty-state .eb{font-size:34px; margin-bottom:10px;}
+  .empty-state h3{margin:0 0 6px; color:var(--ink); font-size:17px;}
+  .empty-state p{font-size:13.5px; margin:0;}
+
+  /* Vitals strip (signature element) */
+  .chart-tab{
+    display:flex; background:var(--card); border-radius:var(--radius);
+    border:1px solid var(--line); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px;
+  }
+  .chart-tab .seg{flex:1; padding:11px 8px; text-align:center; border-right:1px solid var(--line); position:relative;}
+  .chart-tab .seg:last-child{border-right:none;}
+  .chart-tab .seg::after{
+    content:""; position:absolute; bottom:0; left:20%; right:20%; height:3px;
+    background:var(--amber); border-radius:3px 3px 0 0;
+  }
+  .chart-tab .seg .v{font-family:'Fraunces',serif; font-weight:600; font-size:15px;}
+  .chart-tab .seg .l{font-size:10px; letter-spacing:0.4px; text-transform:uppercase; color:var(--ink-soft); margin-top:2px;}
+
+  .section-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft);
+    font-weight:600; margin:18px 0 8px 2px;
+  }
+  .section-label:first-child{margin-top:2px;}
+
+  .visit-row{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .visit-row .date{font-weight:600; font-size:14px;}
+  .visit-row .cc{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .badges{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;}
+  .badge{
+    font-size:11px; padding:3px 9px; border-radius:100px; font-weight:500;
+  }
+  .badge.rx{background:var(--teal-tint); color:var(--teal-dark);}
+  .badge.receipt{background:var(--amber-tint); color:#8A5A0F;}
+
+  /* Buttons */
+  .btn{
+    border:none; border-radius:10px; padding:11px 16px; font-size:14px; font-weight:600;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-primary{background:var(--teal); color:#fff;}
+  .btn-secondary{background:var(--teal-tint); color:var(--teal-dark);}
+  .btn-amber{background:var(--amber); color:#3D2B05;}
+  .btn-outline{background:#fff; color:var(--ink); border:1px solid var(--line);}
+  .btn-danger{background:var(--danger-tint); color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn-row{display:flex; gap:8px; margin-top:10px;}
+  .btn-row .btn{flex:1;}
+
+  .fab{
+    position:fixed; bottom:80px; left:50%; transform:translateX(calc(-50% + 220px));
+    background:var(--teal); color:#fff; border:none; width:54px; height:54px; border-radius:50%;
+    font-size:26px; box-shadow:0 6px 18px rgba(47,111,107,0.4); z-index:25;
+  }
+  @media (max-width:560px){ .fab{ right:20px; left:auto; transform:none; bottom:86px; } }
+
+  /* Bottom nav */
+  .bottomnav{
+    position:sticky; bottom:0; background:#fff; border-top:1px solid var(--line);
+    display:flex; z-index:20; max-width:520px; margin:0 auto; width:100%;
+  }
+  .navbtn{
+    flex:1; border:none; background:none; padding:10px 4px 8px; display:flex; flex-direction:column;
+    align-items:center; gap:3px; color:var(--ink-soft); font-size:10.5px; font-weight:600;
+  }
+  .navbtn .ic{font-size:19px;}
+  .navbtn.active{color:var(--teal);}
+
+  /* Modal / sheet */
+  .overlay{
+    position:fixed; inset:0; background:rgba(21,43,43,0.45); z-index:50;
+    display:flex; align-items:flex-end; max-width:520px; margin:0 auto;
+  }
+  .sheet{
+    background:#fff; width:100%; max-height:92vh; overflow-y:auto;
+    border-radius:20px 20px 0 0; padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+    animation:slideup 0.22s ease-out;
+  }
+  @keyframes slideup{from{transform:translateY(24px); opacity:0.6;} to{transform:translateY(0); opacity:1;}}
+  .sheet-handle{width:36px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 12px;}
+  .sheet h2{margin:0 0 14px; font-size:19px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px;}
+  .field input, .field select, .field textarea{
+    width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 11px; font-size:14.5px;
+    background:#FAFBFA; color:var(--ink);
+  }
+  .field textarea{resize:vertical; min-height:60px;}
+  .row2{display:flex; gap:10px;}
+  .row2 .field{flex:1;}
+  .med-row{
+    border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:#FAFBFA; position:relative;
+  }
+  .med-row .rm{
+    position:absolute; top:8px; right:8px; background:var(--danger-tint); color:var(--danger);
+    border:none; border-radius:6px; width:22px; height:22px; font-size:13px; line-height:1;
+  }
+  .item-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
+  .item-row .field{margin-bottom:0;}
+  .close-x{
+    position:absolute; top:14px; right:14px; background:var(--teal-tint); color:var(--teal-dark);
+    border:none; border-radius:8px; width:30px; height:30px; font-size:15px;
+  }
+  .total-line{
+    display:flex; justify-content:space-between; align-items:center; padding:10px 2px 2px;
+    font-family:'Fraunces',serif; font-weight:600; font-size:17px; border-top:1px dashed var(--line); margin-top:6px;
+  }
+  .toast{
+    position:fixed; bottom:96px; left:50%; transform:translateX(-50%); background:var(--ink);
+    color:#fff; padding:10px 18px; border-radius:100px; font-size:13.5px; z-index:60; opacity:0;
+    transition:opacity 0.25s;
+  }
+  .toast.show{opacity:1;}
+  .subtle-link{background:none;border:none;color:var(--teal);font-weight:600;font-size:13px;padding:6px 0;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script type="module">
+/* ---------------- FIREBASE ---------------- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBPPuX3w5G_Rey-4r4g4o637nq781N_Zhw",
+  authDomain: "saifee-homeopathic.firebaseapp.com",
+  projectId: "saifee-homeopathic",
+  storageBucket: "saifee-homeopathic.firebasestorage.app",
+  messagingSenderId: "241727266755",
+  appId: "1:241727266755:web:1af9923f790cb4cc04a776"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const CLINIC_DOC = doc(db, "clinic", "main");
+
+// Secondary app instance: lets us create new staff logins without signing
+// the current (admin) session out, since createUserWithEmailAndPassword
+// signs in as the newly created user on whichever auth instance it runs on.
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+const secondaryAuth = getAuth(secondaryApp);
+
+let currentUser = null;
+let authReady = false;
+
+onAuthStateChanged(auth, async (user)=>{
+  currentUser = user;
+  authReady = true;
+  if(user){
+    await loadMyProfile();
+    await loadState();
+  } else {
+    loaded = false;
+    state.currentRole = null;
+    render();
+  }
+});
+
+async function loadMyProfile(){
+  try{
+    const ref = doc(db, "users", currentUser.uid);
+    const snap = await getDoc(ref);
+    if(snap.exists()){
+      state.currentRole = snap.data().role || "doctor";
+    } else {
+      // First-ever login (the account made directly in Firebase console)
+      // is bootstrapped as the doctor/admin.
+      await setDoc(ref, {
+        name: currentUser.email.split('@')[0],
+        email: currentUser.email,
+        role: "doctor",
+        createdAt: new Date().toISOString()
+      });
+      state.currentRole = "doctor";
+    }
+  }catch(e){ console.error('profile load failed', e); state.currentRole = "doctor"; }
+}
+async function loadStaffList(){
+  try{
+    const snap = await getDocs(collection(db, "users"));
+    state.staffList = snap.docs.map(d=>({uid:d.id, ...d.data()}));
+  }catch(e){ console.error('staff list failed', e); state.staffList = []; }
+}
+async function addStaff(){
+  const name = document.getElementById('st_name').value.trim();
+  const email = document.getElementById('st_email').value.trim();
+  const pass = document.getElementById('st_pass').value;
+  const role = document.getElementById('st_role').value;
+  const errEl = document.getElementById('staffError');
+  errEl.textContent = "";
+  if(!name || !email || pass.length<6){
+    errEl.textContent = "Fill in name, email, and a password of at least 6 characters.";
+    return;
+  }
+  try{
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+    await setDoc(doc(db, "users", cred.user.uid), {
+      name, email, role, createdAt: new Date().toISOString()
+    });
+    await signOut(secondaryAuth);
+    await loadStaffList();
+    closeModal();
+    render();
+    showToast('Staff member added');
+  }catch(e){
+    errEl.textContent = e.code==='auth/email-already-in-use' ? "That email is already registered." : "Couldn't create that login — try again.";
+  }
+}
+async function removeStaffProfile(uid){
+  if(uid===currentUser.uid){ showToast("You can't remove your own access here"); return; }
+  await deleteDoc(doc(db,"users",uid));
+  await loadStaffList();
+  render();
+  showToast('Removed from staff list — their login still exists in Firebase until deleted there too');
+}
+function isDoctor(){ return state.currentRole === 'doctor'; }
+
+async function doLogin(){
+  const email = document.getElementById('login_email').value.trim();
+  const pass = document.getElementById('login_pass').value;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = "";
+  btn.textContent = "Signing in…"; btn.disabled = true;
+  try{
+    await signInWithEmailAndPassword(auth, email, pass);
+  }catch(e){
+    errEl.textContent = "Couldn't sign in — check the email and password.";
+    btn.textContent = "Sign in"; btn.disabled = false;
+  }
+}
+async function doLogout(){
+  await signOut(auth);
+  state = {...state, patients:[], visits:[], prescriptions:[], receipts:[], currentRole:null, staffList:[]};
+  state.view = {tab:"patients", screen:"patients-list", patientId:null, visitId:null};
+}
+function renderLoginScreen(){
+  document.getElementById('app').innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:28px;background:linear-gradient(180deg, var(--teal-dark), var(--teal));">
+      <div style="background:#fff;border-radius:18px;padding:26px 22px;box-shadow:var(--shadow);">
+        <h1 class="display" style="margin:0 0 4px;font-size:22px;color:var(--teal-dark)">Clinic Chart</h1>
+        <p style="margin:0 0 20px;font-size:13px;color:var(--ink-soft)">Sign in to access patient records</p>
+        <div class="field"><label>Email</label><input id="login_email" type="email" placeholder="doctor@clinic.com"></div>
+        <div class="field"><label>Password</label><input id="login_pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') window.doLogin()"></div>
+        <div id="loginError" style="color:var(--danger);font-size:12.5px;margin-bottom:8px;min-height:16px"></div>
+        <button id="loginBtn" class="btn btn-primary btn-block" onclick="window.doLogin()">Sign in</button>
+        <p style="margin:16px 0 0;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Access is set up by your clinic administrator in Firebase — contact them if you don't have a login.</p>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- STATE ---------------- */
+let state = {
+  settings:{clinicName:"My Clinic", doctorName:"Dr. Jane Doe", qualification:"MBBS, MD", regNo:"", phone:"", address:""},
+  patients:[], visits:[], prescriptions:[], receipts:[],
+  view:{tab:"patients", screen:"patients-list", patientId:null, visitId:null},
+  modal:null, currentRole:null, staffList:[]
+};
+let loaded = false;
+
+async function loadState(){
+  try{
+    const snap = await getDoc(CLINIC_DOC);
+    if(snap.exists()){
+      const parsed = JSON.parse(snap.data().json);
+      state = {...state, ...parsed, view:state.view, modal:null};
+    }
+  }catch(e){ console.error('load failed', e); showToast('Could not load data from server'); }
+  loaded = true;
+  render();
+}
+async function saveState(){
+  try{
+    await setDoc(CLINIC_DOC, {
+      json: JSON.stringify({
+        settings:state.settings, patients:state.patients, visits:state.visits,
+        prescriptions:state.prescriptions, receipts:state.receipts
+      }),
+      updatedAt: new Date().toISOString()
+    });
+  }catch(e){ console.error('save failed', e); showToast('Save failed — check your connection'); }
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify({
+    settings:state.settings, patients:state.patients, visits:state.visits,
+    prescriptions:state.prescriptions, receipts:state.receipts
+  }, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `clinic-backup-${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded');
+}
+function triggerImport(){ document.getElementById('importFile').click(); }
+function importData(fileInput){
+  const file = fileInput.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.patients || !Array.isArray(parsed.patients)) throw new Error('bad format');
+      state = {...state, ...parsed, view:state.view, modal:null};
+      saveState();
+      render();
+      showToast('Data imported');
+    }catch(err){ showToast('Could not read that backup file'); }
+  };
+  reader.readAsText(file);
+  fileInput.value = '';
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(iso){
+  if(!iso) return "—";
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- DERIVED HELPERS ---------------- */
+function getPatient(id){ return state.patients.find(p=>p.id===id); }
+function getVisit(id){ return state.visits.find(v=>v.id===id); }
+function visitsForPatient(pid){ return state.visits.filter(v=>v.patientId===pid).sort((a,b)=>b.date.localeCompare(a.date)); }
+function rxForVisit(vid){ return state.prescriptions.find(r=>r.visitId===vid); }
+function receiptForVisit(vid){ return state.receipts.find(r=>r.visitId===vid); }
+function lastVisitDate(pid){
+  const vs = visitsForPatient(pid);
+  return vs.length ? vs[0].date : null;
+}
+function age(dobOrAge){ return dobOrAge; }
+
+/* ---------------- RENDER ---------------- */
+function render(){
+  const app = document.getElementById('app');
+  if(!authReady){ app.innerHTML = `<div style="padding:60px;text-align:center;color:var(--ink-soft)">Loading…</div>`; return; }
+  if(!currentUser){ renderLoginScreen(); return; }
+  if(!loaded){ app.innerHTML = `<div style="padding:60px;text-align:center;color:var(--ink-soft)">Loading clinic data…</div>`; return; }
+  let body = "";
+  if(state.view.screen==="patients-list") body = renderPatientsList();
+  else if(state.view.screen==="patient-detail") body = renderPatientDetail();
+  else if(state.view.screen==="visit-detail") body = renderVisitDetail();
+  else if(state.view.screen==="records") body = renderRecords();
+  else if(state.view.screen==="settings") body = renderSettings();
+  else if(state.view.screen==="staff") body = renderStaff();
+
+  app.innerHTML = `
+    ${renderTopbar()}
+    <main>${body}</main>
+    ${renderFab()}
+    ${renderBottomNav()}
+    ${state.modal ? renderModal() : ""}
+  `;
+  attachModalHandlers();
+}
+
+function renderTopbar(){
+  let title = state.settings.clinicName, sub = state.settings.doctorName;
+  let showSearch = state.view.screen==="patients-list";
+  let showBack = state.view.screen==="patient-detail" || state.view.screen==="visit-detail";
+  if(state.view.screen==="patient-detail"){ title = getPatient(state.view.patientId)?.name || "Patient"; sub = "Patient chart"; }
+  if(state.view.screen==="visit-detail"){ title = "Visit — " + fmtDate(getVisit(state.view.visitId)?.date); sub = getPatient(getVisit(state.view.visitId)?.patientId)?.name || ""; }
+  if(state.view.screen==="records"){ title = "Records"; sub = "Prescriptions & receipts"; }
+  if(state.view.screen==="settings"){ title = "Settings"; sub = "Clinic details"; }
+  if(state.view.screen==="staff"){ title = "Staff"; sub = "Who has access"; }
+  return `
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          ${showBack ? `<button class="icon-btn" style="margin-bottom:8px" onclick="goBack()">←</button>` : ""}
+          <div class="clinic-name display">${escapeHtml(title)}</div>
+          <div class="doctor-name">${escapeHtml(sub)}</div>
+        </div>
+      </div>
+      ${showSearch ? `<div class="search-wrap"><input id="searchInput" placeholder="Search patients by name or phone" oninput="onSearch(this.value)" value="${state._search||""}"></div>` : ""}
+    </div>
+  `;
+}
+
+function goBack(){
+  if(state.view.screen==="visit-detail"){ state.view.screen="patient-detail"; }
+  else if(state.view.screen==="patient-detail"){ state.view.screen="patients-list"; state.view.patientId=null; }
+  render();
+}
+
+function renderBottomNav(){
+  const tabs = [
+    {id:"patients", ic:"👤", label:"Patients", screen:"patients-list"},
+    {id:"records", ic:"🧾", label:"Records", screen:"records"},
+  ];
+  if(isDoctor()) tabs.push({id:"staff", ic:"🔑", label:"Staff", screen:"staff"});
+  tabs.push({id:"settings", ic:"⚙", label:"Settings", screen:"settings"});
+  return `<div class="bottomnav">
+    ${tabs.map(t=>`
+      <button class="navbtn ${state.view.tab===t.id?'active':''}" onclick="goTab('${t.id}','${t.screen}')">
+        <span class="ic">${t.ic}</span><span>${t.label}</span>
+      </button>`).join("")}
+  </div>`;
+}
+function goTab(tab, screen){
+  state.view = {tab, screen, patientId:null, visitId:null};
+  if(tab==='staff') loadStaffList().then(render);
+  render();
+}
+
+function renderFab(){
+  if(state.view.screen==="patients-list") return `<button class="fab" onclick="openModal('add-patient')">+</button>`;
+  if(state.view.screen==="patient-detail") return `<button class="fab" onclick="openModal('add-visit', {patientId:state.view.patientId})">+</button>`;
+  return "";
+}
+
+/* ---- Patients list ---- */
+function onSearch(v){ state._search = v; renderListOnly(); }
+function renderListOnly(){
+  document.querySelector('main').innerHTML = renderPatientsList();
+}
+function renderPatientsList(){
+  const q = (state._search||"").toLowerCase().trim();
+  let list = state.patients.slice().sort((a,b)=> (lastVisitDate(b.id)||"").localeCompare(lastVisitDate(a.id)||"") || a.name.localeCompare(b.name));
+  if(q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.phone||"").includes(q));
+  if(list.length===0){
+    return `<div class="empty-state"><div class="eb">🩺</div><h3>${state.patients.length? "No matches" : "No patients yet"}</h3><p>${state.patients.length? "Try a different name or number." : "Tap the + button to add your first patient."}</p></div>`;
+  }
+  return list.map(p=>`
+    <div class="card patient-card" onclick="openPatient('${p.id}')">
+      <div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="meta">${p.age?p.age+' yrs · ':''}${p.gender||''}${p.phone?' · '+escapeHtml(p.phone):''}</div>
+        <div class="meta">Last visit: ${lastVisitDate(p.id) ? fmtDate(lastVisitDate(p.id)) : "—"}</div>
+      </div>
+      <div class="chev">›</div>
+    </div>
+  `).join("");
+}
+function openPatient(id){ state.view = {tab:"patients", screen:"patient-detail", patientId:id, visitId:null}; render(); }
+
+/* ---- Patient detail ---- */
+function renderPatientDetail(){
+  const p = getPatient(state.view.patientId);
+  if(!p) return `<div class="empty-state"><p>Patient not found.</p></div>`;
+  const visits = visitsForPatient(p.id);
+  return `
+    <div class="chart-tab">
+      <div class="seg"><div class="v">${p.age||"—"}</div><div class="l">Age</div></div>
+      <div class="seg"><div class="v">${p.bloodGroup||"—"}</div><div class="l">Blood grp</div></div>
+      <div class="seg"><div class="v">${visits.length? fmtDate(visits[0].date).replace(/, \d{4}/,'') : "—"}</div><div class="l">Last visit</div></div>
+      <div class="seg"><div class="v" style="font-size:12px">${p.phone||"—"}</div><div class="l">Phone</div></div>
+    </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div class="meta" style="font-size:12.5px;color:var(--ink-soft)">${p.allergies? "⚠ Allergies: "+escapeHtml(p.allergies) : "No known allergies on file"}</div>
+        ${p.address? `<div class="meta" style="font-size:12.5px;color:var(--ink-soft);margin-top:3px">${escapeHtml(p.address)}</div>`:''}
+      </div>
+      <button class="btn btn-outline" onclick="openModal('edit-patient',{patientId:'${p.id}'})">Edit</button>
+    </div>
+    <div class="section-label">Visit history (${visits.length})</div>
+    ${visits.length===0 ? `<div class="empty-state"><div class="eb">📋</div><h3>No visits yet</h3><p>Tap + to log the first visit.</p></div>` :
+      visits.map(v=>{
+        const rx = rxForVisit(v.id), rc = receiptForVisit(v.id);
+        return `<div class="card" onclick="openVisit('${v.id}')" style="cursor:pointer">
+          <div class="visit-row">
+            <div><div class="date">${fmtDate(v.date)}</div><div class="cc">${escapeHtml(v.chiefComplaint||"No complaint noted")}</div></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="badges">
+            ${rx? `<span class="badge rx">℞ Prescription</span>`:''}
+            ${rc? `<span class="badge receipt">🧾 Receipt · ₹${rc.total}</span>`:''}
+          </div>
+        </div>`;
+      }).join("")
+    }
+  `;
+}
+function openVisit(id){ state.view.screen="visit-detail"; state.view.visitId=id; render(); }
+
+/* ---- Visit detail ---- */
+function renderVisitDetail(){
+  const v = getVisit(state.view.visitId);
+  if(!v) return `<div class="empty-state"><p>Visit not found.</p></div>`;
+  const p = getPatient(v.patientId);
+  const rx = rxForVisit(v.id), rc = receiptForVisit(v.id);
+  const vit = v.vitals||{};
+  return `
+    <div class="card">
+      <div class="section-label" style="margin-top:0">Visit notes</div>
+      <div style="font-size:14px;line-height:1.5">
+        <b>Chief complaint:</b> ${escapeHtml(v.chiefComplaint||"—")}<br>
+        <b>Diagnosis:</b> ${escapeHtml(v.diagnosis||"—")}<br>
+        ${v.notes? `<b>Notes:</b> ${escapeHtml(v.notes)}<br>`:''}
+      </div>
+      ${(vit.bp||vit.temp||vit.pulse||vit.weight) ? `
+        <div class="badges">
+          ${vit.bp?`<span class="badge rx">BP ${escapeHtml(vit.bp)}</span>`:''}
+          ${vit.temp?`<span class="badge rx">Temp ${escapeHtml(vit.temp)}</span>`:''}
+          ${vit.pulse?`<span class="badge rx">Pulse ${escapeHtml(vit.pulse)}</span>`:''}
+          ${vit.weight?`<span class="badge rx">Wt ${escapeHtml(vit.weight)}</span>`:''}
+        </div>`:''}
+      <button class="subtle-link" onclick="openModal('add-visit',{patientId:'${p.id}',editId:'${v.id}'})">Edit visit</button>
+    </div>
+
+    <div class="section-label">Prescription</div>
+    ${rx ? `
+      <div class="card">
+        ${rx.medicines.map(m=>`<div style="font-size:14px;margin-bottom:6px"><b>${escapeHtml(m.name)}</b> — ${escapeHtml(m.dosage)}, ${escapeHtml(m.frequency)}, ${escapeHtml(m.duration)}${m.instructions? ' ('+escapeHtml(m.instructions)+')':''}</div>`).join("")}
+        ${rx.advice? `<div style="font-size:13px;color:var(--ink-soft);margin-top:6px"><b>Advice:</b> ${escapeHtml(rx.advice)}</div>`:''}
+        ${rx.followUp? `<div style="font-size:13px;color:var(--ink-soft);margin-top:2px"><b>Follow-up:</b> ${fmtDate(rx.followUp)}</div>`:''}
+        <div class="btn-row">
+          ${isDoctor()? `<button class="btn btn-secondary" onclick="openModal('add-rx',{visitId:'${v.id}'})">Edit</button>`:''}
+          <button class="btn btn-primary" onclick="downloadPrescriptionPDF('${rx.id}')">Download PDF</button>
+        </div>
+      </div>
+    ` : (isDoctor()
+        ? `<button class="btn btn-secondary btn-block" onclick="openModal('add-rx',{visitId:'${v.id}'})">+ Add prescription</button>`
+        : `<div class="empty-state" style="padding:24px"><p>No prescription yet — only the doctor can add one.</p></div>`)}
+
+    <div class="section-label">Receipt</div>
+    ${rc ? `
+      <div class="card">
+        ${rc.items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px"><span>${escapeHtml(i.desc)}</span><span>₹${i.amount}</span></div>`).join("")}
+        <div class="total-line"><span>Total</span><span>₹${rc.total}</span></div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Payment: ${escapeHtml(rc.paymentMode||"—")}</div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="openModal('add-receipt',{visitId:'${v.id}'})">Edit</button>
+          <button class="btn btn-primary" onclick="downloadReceiptPDF('${rc.id}')">Download PDF</button>
+        </div>
+      </div>
+    ` : `<button class="btn btn-amber btn-block" onclick="openModal('add-receipt',{visitId:'${v.id}'})">+ Add receipt</button>`}
+  `;
+}
+
+/* ---- Records tab ---- */
+function renderRecords(){
+  const items = [
+    ...state.prescriptions.map(r=>({...r,type:'rx'})),
+    ...state.receipts.map(r=>({...r,type:'receipt'}))
+  ].sort((a,b)=>b.date.localeCompare(a.date));
+  if(items.length===0) return `<div class="empty-state"><div class="eb">🗂️</div><h3>No records yet</h3><p>Prescriptions and receipts you create will show up here.</p></div>`;
+  return items.map(it=>{
+    const p = getPatient(it.patientId);
+    return `<div class="card patient-card" onclick="${it.type==='rx' ? `downloadPrescriptionPDF('${it.id}')` : `downloadReceiptPDF('${it.id}')`}">
+      <div>
+        <div class="name" style="font-size:15px">${it.type==='rx'?'℞':'🧾'} ${escapeHtml(p?.name||'Unknown patient')}</div>
+        <div class="meta">${fmtDate(it.date)} · ${it.type==='rx' ? it.medicines.length+' medicine(s)' : '₹'+it.total}</div>
+      </div>
+      <div class="chev">⬇</div>
+    </div>`;
+  }).join("");
+}
+
+/* ---- Settings ---- */
+function renderSettings(){
+  const s = state.settings;
+  return `
+    <div class="card">
+      <div class="field"><label>Clinic name</label><input id="s_clinicName" value="${escapeAttr(s.clinicName)}"></div>
+      <div class="field"><label>Doctor name</label><input id="s_doctorName" value="${escapeAttr(s.doctorName)}"></div>
+      <div class="field"><label>Qualification</label><input id="s_qualification" value="${escapeAttr(s.qualification)}"></div>
+      <div class="field"><label>Registration no.</label><input id="s_regNo" value="${escapeAttr(s.regNo)}"></div>
+      <div class="field"><label>Phone</label><input id="s_phone" value="${escapeAttr(s.phone)}"></div>
+      <div class="field"><label>Clinic address</label><textarea id="s_address">${escapeHtml(s.address)}</textarea></div>
+      <button class="btn btn-primary btn-block" onclick="saveSettings()">Save settings</button>
+    </div>
+    <div class="section-label">Backup & transfer</div>
+    <div class="card">
+      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px">
+        Data is stored only in this browser on this device — it is not synced anywhere. Export a backup regularly, and use it to move data to another device or restore after clearing browser data.
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="exportData()">Export backup</button>
+        <button class="btn btn-outline" onclick="triggerImport()">Import backup</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this)">
+    </div>
+    <button class="btn btn-outline btn-block" onclick="doLogout()" style="margin-top:4px">Sign out</button>
+  `;
+}
+function saveSettings(){
+  state.settings = {
+    clinicName: document.getElementById('s_clinicName').value.trim() || "My Clinic",
+    doctorName: document.getElementById('s_doctorName').value.trim(),
+    qualification: document.getElementById('s_qualification').value.trim(),
+    regNo: document.getElementById('s_regNo').value.trim(),
+    phone: document.getElementById('s_phone').value.trim(),
+    address: document.getElementById('s_address').value.trim(),
+  };
+  saveState(); render(); showToast('Settings saved');
+}
+
+/* ---- Staff screen (doctor only) ---- */
+function renderStaff(){
+  if(!isDoctor()) return `<div class="empty-state"><div class="eb">🔒</div><h3>Doctor access only</h3><p>Ask the clinic doctor to manage staff logins.</p></div>`;
+  const list = state.staffList||[];
+  return `
+    <div class="card" style="font-size:12.5px;color:var(--ink-soft);line-height:1.5">
+      <b>Doctor</b> has full access, including prescriptions and staff management.<br>
+      <b>Receptionist</b> can manage patients, visits, and receipts, but can't write prescriptions or manage staff.
+    </div>
+    <button class="btn btn-primary btn-block" style="margin:10px 0 14px" onclick="openModal('add-staff')">+ Add staff login</button>
+    ${list.length===0 ? `<div class="empty-state"><p>No staff added yet.</p></div>` :
+      list.map(u=>`
+        <div class="card patient-card">
+          <div>
+            <div class="name" style="font-size:15px">${escapeHtml(u.name)}</div>
+            <div class="meta">${escapeHtml(u.email)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge ${u.role==='doctor'?'rx':'receipt'}">${u.role==='doctor'?'Doctor':'Receptionist'}</span>
+            ${u.uid!==currentUser.uid ? `<button class="rm" style="position:static" onclick="removeStaffProfile('${u.uid}')">✕</button>` : ''}
+          </div>
+        </div>
+      `).join("")
+    }
+  `;
+}
+
+function openModal(type, ctx={}){ state.modal = {type, ctx, meds: ctx.meds || null, items: ctx.items || null}; render(); }
+function closeModal(){ state.modal = null; render(); }
+
+function renderModal(){
+  const m = state.modal;
+  let content = "";
+  if(m.type==='add-patient' || m.type==='edit-patient'){
+    const p = m.ctx.patientId ? getPatient(m.ctx.patientId) : {};
+    content = `
+      <h2>${m.ctx.patientId? 'Edit patient':'New patient'}</h2>
+      <div class="field"><label>Full name *</label><input id="f_name" value="${escapeAttr(p.name)}" placeholder="e.g. Asha Verma"></div>
+      <div class="row2">
+        <div class="field"><label>Age</label><input id="f_age" type="number" value="${p.age||''}" placeholder="34"></div>
+        <div class="field"><label>Gender</label>
+          <select id="f_gender">
+            <option value="">—</option>
+            <option ${p.gender==='Male'?'selected':''}>Male</option>
+            <option ${p.gender==='Female'?'selected':''}>Female</option>
+            <option ${p.gender==='Other'?'selected':''}>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Phone</label><input id="f_phone" value="${escapeAttr(p.phone)}" placeholder="+91 98xxxxxxx"></div>
+      <div class="row2">
+        <div class="field"><label>Blood group</label><input id="f_bg" value="${escapeAttr(p.bloodGroup)}" placeholder="O+"></div>
+        <div class="field"><label>Allergies</label><input id="f_all" value="${escapeAttr(p.allergies)}" placeholder="None"></div>
+      </div>
+      <div class="field"><label>Address</label><textarea id="f_addr">${escapeHtml(p.address)}</textarea></div>
+      <div class="btn-row">
+        ${m.ctx.patientId && isDoctor()? `<button class="btn btn-danger" onclick="deletePatient('${p.id}')">Delete</button>`:''}
+        <button class="btn btn-primary" onclick="savePatient(${m.ctx.patientId?`'${m.ctx.patientId}'`:'null'})">Save patient</button>
+      </div>
+    `;
+  }
+  else if(m.type==='add-visit'){
+    const editing = m.ctx.editId ? getVisit(m.ctx.editId) : null;
+    const v = editing || {date: todayISO(), vitals:{}};
+    content = `
+      <h2>${editing? 'Edit visit':'New visit'}</h2>
+      <div class="field"><label>Visit date</label><input id="v_date" type="date" value="${v.date}"></div>
+      <div class="field"><label>Chief complaint</label><input id="v_cc" value="${escapeAttr(v.chiefComplaint)}" placeholder="e.g. Fever and sore throat"></div>
+      <div class="field"><label>Diagnosis</label><input id="v_dx" value="${escapeAttr(v.diagnosis)}" placeholder="e.g. Viral pharyngitis"></div>
+      <div class="row2">
+        <div class="field"><label>BP</label><input id="v_bp" value="${escapeAttr(v.vitals?.bp)}" placeholder="120/80"></div>
+        <div class="field"><label>Temp</label><input id="v_temp" value="${escapeAttr(v.vitals?.temp)}" placeholder="98.6°F"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Pulse</label><input id="v_pulse" value="${escapeAttr(v.vitals?.pulse)}" placeholder="76 bpm"></div>
+        <div class="field"><label>Weight</label><input id="v_weight" value="${escapeAttr(v.vitals?.weight)}" placeholder="68 kg"></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="v_notes">${escapeHtml(v.notes)}</textarea></div>
+      <div class="btn-row">
+        ${editing? `<button class="btn btn-danger" onclick="deleteVisit('${v.id}')">Delete</button>`:''}
+        <button class="btn btn-primary" onclick="saveVisit('${m.ctx.patientId}', ${editing?`'${editing.id}'`:'null'})">Save visit</button>
+      </div>
+    `;
+  }
+  else if(m.type==='add-rx'){
+    const existing = rxForVisit(m.ctx.visitId);
+    const meds = m.meds || (existing? existing.medicines.slice() : [{name:"",dosage:"",frequency:"",duration:"",instructions:""}]);
+    state.modal.meds = meds;
+    content = `
+      <h2>Prescription</h2>
+      <div id="medsWrap">
+        ${meds.map((med,i)=>`
+          <div class="med-row">
+            ${meds.length>1?`<button class="rm" onclick="removeMedRow(${i})">✕</button>`:''}
+            <div class="field"><label>Medicine name</label><input data-i="${i}" data-f="name" class="medInput" value="${escapeAttr(med.name)}" placeholder="e.g. Paracetamol 500mg"></div>
+            <div class="row2">
+              <div class="field"><label>Dosage</label><input data-i="${i}" data-f="dosage" class="medInput" value="${escapeAttr(med.dosage)}" placeholder="1 tablet"></div>
+              <div class="field"><label>Frequency</label><input data-i="${i}" data-f="frequency" class="medInput" value="${escapeAttr(med.frequency)}" placeholder="Twice daily"></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label>Duration</label><input data-i="${i}" data-f="duration" class="medInput" value="${escapeAttr(med.duration)}" placeholder="5 days"></div>
+              <div class="field"><label>Instructions</label><input data-i="${i}" data-f="instructions" class="medInput" value="${escapeAttr(med.instructions)}" placeholder="After food"></div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <button class="subtle-link" onclick="addMedRow()">+ Add another medicine</button>
+      <div class="field" style="margin-top:8px"><label>General advice</label><textarea id="rx_advice">${escapeHtml(existing?.advice)}</textarea></div>
+      <div class="field"><label>Follow-up date</label><input id="rx_followup" type="date" value="${existing?.followUp||''}"></div>
+      <div class="btn-row">
+        ${existing? `<button class="btn btn-danger" onclick="deleteRx('${existing.id}','${m.ctx.visitId}')">Delete</button>`:''}
+        <button class="btn btn-primary" onclick="saveRx('${m.ctx.visitId}', ${existing?`'${existing.id}'`:'null'})">Save prescription</button>
+      </div>
+    `;
+  }
+  else if(m.type==='add-receipt'){
+    const existing = receiptForVisit(m.ctx.visitId);
+    const items = m.items || (existing? existing.items.slice() : [{desc:"Consultation",amount:""}]);
+    state.modal.items = items;
+    const total = items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+    content = `
+      <h2>Receipt</h2>
+      <div id="itemsWrap">
+        ${items.map((it,i)=>`
+          <div class="item-row">
+            <div class="field" style="flex:2"><label>${i===0?'Service / item':''}</label><input data-i="${i}" data-f="desc" class="itemInput" value="${escapeAttr(it.desc)}" placeholder="Consultation"></div>
+            <div class="field" style="flex:1"><label>${i===0?'Amount ₹':''}</label><input data-i="${i}" data-f="amount" type="number" class="itemInput" value="${it.amount}" placeholder="500"></div>
+            ${items.length>1?`<button class="rm" style="position:static;margin-bottom:12px" onclick="removeItemRow(${i})">✕</button>`:''}
+          </div>
+        `).join("")}
+      </div>
+      <button class="subtle-link" onclick="addItemRow()">+ Add line item</button>
+      <div class="total-line"><span>Total</span><span>₹${total}</span></div>
+      <div class="field" style="margin-top:10px"><label>Payment mode</label>
+        <select id="rc_payment">
+          ${['Cash','UPI','Card','Insurance'].map(o=>`<option ${existing?.paymentMode===o?'selected':''}>${o}</option>`).join("")}
+        </select>
+      </div>
+      <div class="btn-row">
+        ${existing? `<button class="btn btn-danger" onclick="deleteReceipt('${existing.id}','${m.ctx.visitId}')">Delete</button>`:''}
+        <button class="btn btn-primary" onclick="saveReceipt('${m.ctx.visitId}', ${existing?`'${existing.id}'`:'null'})">Save receipt</button>
+      </div>
+    `;
+  }
+  else if(m.type==='add-staff'){
+    content = `
+      <h2>Add staff login</h2>
+      <div class="field"><label>Name</label><input id="st_name" placeholder="e.g. Priya Shah"></div>
+      <div class="field"><label>Email</label><input id="st_email" type="email" placeholder="priya@clinic.com"></div>
+      <div class="field"><label>Temporary password</label><input id="st_pass" type="password" placeholder="At least 6 characters"></div>
+      <div class="field"><label>Role</label>
+        <select id="st_role">
+          <option value="receptionist">Receptionist</option>
+          <option value="doctor">Doctor</option>
+        </select>
+      </div>
+      <div id="staffError" style="color:var(--danger);font-size:12.5px;margin-bottom:8px;min-height:16px"></div>
+      <button class="btn btn-primary btn-block" onclick="addStaff()">Create login</button>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px;line-height:1.5">Share this email and password with them directly — they should change the password after first sign-in isn't built in yet, so pick something you're comfortable sharing for now.</p>
+    `;
+  }
+  return `<div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet"><div class="sheet-handle"></div><button class="close-x" onclick="closeModal()">✕</button>${content}</div>
+  </div>`;
+}
+function attachModalHandlers(){
+  document.querySelectorAll('.medInput').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const i = +e.target.dataset.i, f = e.target.dataset.f;
+      state.modal.meds[i][f] = e.target.value;
+    });
+  });
+  document.querySelectorAll('.itemInput').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const i = +e.target.dataset.i, f = e.target.dataset.f;
+      state.modal.items[i][f] = e.target.value;
+      if(f==='amount'){
+        const total = state.modal.items.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
+        const tl = document.querySelector('.total-line span:last-child');
+        if(tl) tl.textContent = '₹'+total;
+      }
+    });
+  });
+}
+function addMedRow(){ state.modal.meds.push({name:"",dosage:"",frequency:"",duration:"",instructions:""}); render(); }
+function removeMedRow(i){ state.modal.meds.splice(i,1); render(); }
+function addItemRow(){ state.modal.items.push({desc:"",amount:""}); render(); }
+function removeItemRow(i){ state.modal.items.splice(i,1); render(); }
+
+/* ---------------- SAVE HANDLERS ---------------- */
+function savePatient(id){
+  const name = document.getElementById('f_name').value.trim();
+  if(!name){ showToast('Name is required'); return; }
+  const data = {
+    name, age: document.getElementById('f_age').value,
+    gender: document.getElementById('f_gender').value,
+    phone: document.getElementById('f_phone').value.trim(),
+    bloodGroup: document.getElementById('f_bg').value.trim(),
+    allergies: document.getElementById('f_all').value.trim(),
+    address: document.getElementById('f_addr').value.trim(),
+  };
+  if(id){
+    const p = getPatient(id); Object.assign(p, data);
+  } else {
+    const p = {id:uid(), createdAt:todayISO(), ...data};
+    state.patients.push(p);
+    state.view.patientId = p.id;
+  }
+  saveState(); closeModal();
+  if(!id) { state.view.screen='patient-detail'; render(); }
+  showToast('Patient saved');
+}
+function deletePatient(id){
+  state.patients = state.patients.filter(p=>p.id!==id);
+  const vids = state.visits.filter(v=>v.patientId===id).map(v=>v.id);
+  state.visits = state.visits.filter(v=>v.patientId!==id);
+  state.prescriptions = state.prescriptions.filter(r=>!vids.includes(r.visitId));
+  state.receipts = state.receipts.filter(r=>!vids.includes(r.visitId));
+  saveState(); closeModal();
+  state.view = {tab:'patients',screen:'patients-list',patientId:null,visitId:null};
+  render(); showToast('Patient deleted');
+}
+function saveVisit(patientId, editId){
+  const data = {
+    date: document.getElementById('v_date').value || todayISO(),
+    chiefComplaint: document.getElementById('v_cc').value.trim(),
+    diagnosis: document.getElementById('v_dx').value.trim(),
+    notes: document.getElementById('v_notes').value.trim(),
+    vitals:{
+      bp: document.getElementById('v_bp').value.trim(),
+      temp: document.getElementById('v_temp').value.trim(),
+      pulse: document.getElementById('v_pulse').value.trim(),
+      weight: document.getElementById('v_weight').value.trim(),
+    }
+  };
+  if(editId){
+    Object.assign(getVisit(editId), data);
+  } else {
+    const v = {id:uid(), patientId, createdAt:todayISO(), ...data};
+    state.visits.push(v);
+    state.view.visitId = v.id;
+  }
+  saveState(); closeModal();
+  if(!editId){ state.view.screen='visit-detail'; }
+  render(); showToast('Visit saved');
+}
+function deleteVisit(id){
+  const v = getVisit(id);
+  state.visits = state.visits.filter(x=>x.id!==id);
+  state.prescriptions = state.prescriptions.filter(r=>r.visitId!==id);
+  state.receipts = state.receipts.filter(r=>r.visitId!==id);
+  saveState(); closeModal();
+  state.view.screen='patient-detail'; render(); showToast('Visit deleted');
+}
+function saveRx(visitId, existingId){
+  const meds = state.modal.meds.filter(m=>m.name.trim());
+  if(meds.length===0){ showToast('Add at least one medicine'); return; }
+  const v = getVisit(visitId);
+  const data = {
+    visitId, patientId: v.patientId, date: v.date, medicines: meds,
+    advice: document.getElementById('rx_advice').value.trim(),
+    followUp: document.getElementById('rx_followup').value
+  };
+  if(existingId){ Object.assign(state.prescriptions.find(r=>r.id===existingId), data); }
+  else { state.prescriptions.push({id:uid(), ...data}); }
+  saveState(); closeModal(); render(); showToast('Prescription saved');
+}
+function deleteRx(id, visitId){
+  state.prescriptions = state.prescriptions.filter(r=>r.id!==id);
+  saveState(); closeModal(); render(); showToast('Prescription deleted');
+}
+function saveReceipt(visitId, existingId){
+  const items = state.modal.items.filter(i=>i.desc.trim() && i.amount!=="");
+  if(items.length===0){ showToast('Add at least one item'); return; }
+  const total = items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+  const v = getVisit(visitId);
+  const data = {
+    visitId, patientId: v.patientId, date: v.date, items, total,
+    paymentMode: document.getElementById('rc_payment').value
+  };
+  if(existingId){ Object.assign(state.receipts.find(r=>r.id===existingId), data); }
+  else { state.receipts.push({id:uid(), ...data}); }
+  saveState(); closeModal(); render(); showToast('Receipt saved');
+}
+function deleteReceipt(id, visitId){
+  state.receipts = state.receipts.filter(r=>r.id!==id);
+  saveState(); closeModal(); render(); showToast('Receipt deleted');
+}
+
+/* ---------------- PDF GENERATION ---------------- */
+function letterheadBlock(doc, y){
+  const s = state.settings;
+  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(30,74,71);
+  doc.text(s.clinicName||"Clinic", 15, y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(90,100,98);
+  let line2 = [s.doctorName, s.qualification].filter(Boolean).join(" · ");
+  if(line2) doc.text(line2, 15, y+6);
+  let line3 = [s.regNo? "Reg. No: "+s.regNo : "", s.phone].filter(Boolean).join("   |   ");
+  if(line3) doc.text(line3, 15, y+11.5);
+  if(s.address) doc.text(s.address, 15, y+17);
+  doc.setDrawColor(47,111,107); doc.setLineWidth(0.8);
+  doc.line(15, y+22, 195, y+22);
+  return y+30;
+}
+function downloadPrescriptionPDF(rxId){
+  const rx = state.prescriptions.find(r=>r.id===rxId);
+  const p = getPatient(rx.patientId);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = letterheadBlock(doc, 18);
+  doc.setFontSize(11); doc.setTextColor(21,43,43); doc.setFont('helvetica','bold');
+  doc.text(`Patient: ${p.name}`, 15, y);
+  doc.setFont('helvetica','normal');
+  doc.text(`Age/Sex: ${p.age||'—'} / ${p.gender||'—'}`, 130, y);
+  y += 6;
+  doc.text(`Date: ${fmtDate(rx.date)}`, 15, y);
+  y += 10;
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Rx', 15, y);
+  y += 8;
+  doc.setFontSize(11);
+  rx.medicines.forEach((m,i)=>{
+    doc.setFont('helvetica','bold');
+    doc.text(`${i+1}. ${m.name}`, 18, y);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.text(`${m.dosage||''}  ·  ${m.frequency||''}  ·  ${m.duration||''}${m.instructions? '  ·  '+m.instructions:''}`, 22, y+5);
+    doc.setFontSize(11);
+    y += 12;
+    if(y>270){ doc.addPage(); y=20; }
+  });
+  if(rx.advice){
+    y+=2; doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.text('Advice:', 15, y);
+    doc.setFont('helvetica','normal');
+    const split = doc.splitTextToSize(rx.advice, 175);
+    doc.text(split, 15, y+5); y += 5 + split.length*5;
+  }
+  if(rx.followUp){
+    y += 4; doc.setFont('helvetica','bold'); doc.text('Follow-up: ', 15, y);
+    doc.setFont('helvetica','normal'); doc.text(fmtDate(rx.followUp), 38, y);
+  }
+  doc.setFontSize(9); doc.setTextColor(140,150,148);
+  doc.text('Generated via clinic app — not valid without doctor signature.', 15, 285);
+  doc.save(`Prescription_${p.name.replace(/\s+/g,'_')}_${rx.date}.pdf`);
+  showToast('PDF downloaded');
+}
+function downloadReceiptPDF(receiptId){
+  const rc = state.receipts.find(r=>r.id===receiptId);
+  const p = getPatient(rc.patientId);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = letterheadBlock(doc, 18);
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(21,43,43);
+  doc.text('Payment Receipt', 15, y); y+=9;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  doc.text(`Patient: ${p.name}`, 15, y);
+  doc.text(`Date: ${fmtDate(rc.date)}`, 130, y);
+  y += 10;
+  doc.setDrawColor(224,230,226);
+  doc.line(15,y,195,y); y+=7;
+  doc.setFont('helvetica','bold');
+  doc.text('Description', 15, y); doc.text('Amount', 175, y, {align:'right'});
+  y += 5; doc.setFont('helvetica','normal');
+  doc.line(15,y,195,y); y+=7;
+  rc.items.forEach(it=>{
+    doc.text(it.desc, 15, y);
+    doc.text(`Rs. ${it.amount}`, 195, y, {align:'right'});
+    y += 7;
+  });
+  doc.line(15,y,195,y); y+=8;
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Total', 15, y); doc.text(`Rs. ${rc.total}`, 195, y, {align:'right'});
+  y += 8; doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.text(`Payment mode: ${rc.paymentMode||'—'}`, 15, y);
+  doc.setFontSize(9); doc.setTextColor(140,150,148);
+  doc.text('Thank you for visiting.', 15, 285);
+  doc.save(`Receipt_${p.name.replace(/\s+/g,'_')}_${rc.date}.pdf`);
+  showToast('PDF downloaded');
+}
+
+/* ---------------- UTIL ---------------- */
+function escapeHtml(s){ if(s===undefined||s===null) return ""; return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+/* ---------------- EXPOSE TO WINDOW (needed because this is a module) ---------------- */
+Object.assign(window, {
+  doLogin, doLogout, openModal, closeModal, savePatient, deletePatient,
+  saveVisit, deleteVisit, saveRx, deleteRx, saveReceipt, deleteReceipt,
+  downloadPrescriptionPDF, downloadReceiptPDF, openPatient, openVisit,
+  goBack, goTab, onSearch, addMedRow, removeMedRow, addItemRow, removeItemRow,
+  saveSettings, exportData, triggerImport, importData, addStaff, removeStaffProfile
+});
+
+render();
+</script>
+</body>
+</html>
