@@ -22,7 +22,7 @@ window.__CLINIC_CONFIG = {
   // The staff app gets this from the signed-in user's profile; book.html has
   // no user, so it has to be told. Firebase Console > Firestore > clinics >
   // the document ID. Leave "" to switch public booking off entirely.
-  clinicId: "",
+  clinicId: "xJT4d7agZKNUXec0iOPy",
 
   apiKey: "AIzaSyBPPuX3w5G_Rey-4r4g4o637nq781N_Zhw",
   authDomain: "saifee-homeopathic.firebaseapp.com",
