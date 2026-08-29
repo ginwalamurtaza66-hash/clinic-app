@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- No inline script anywhere on this page, on purpose. index.html carries its
+     logic inline and therefore needs a SHA-256 stamped into its CSP by
+     stamp_csp_hash.py; doing the same here would mean a second hash to keep in
+     step, and a stale one is a blank page. All logic lives in book.js, which
+     'self' already covers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src https://firestore.googleapis.com https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Book an appointment</title>
+<style>
+  :root{
+    --paper:#EFEAE0;--card:#FBF8EF;--ink:#152B2B;--soft:#5C6E6C;--teal:#2F6F6B;
+    --teal-dark:#1E4A47;--teal-tint:#E6EEEC;--tincture:#9C6B2E;--tincture-tint:#F1E4CC;
+    --rule:#DDD0AC;--line:#E0E6E2;--danger:#C1443C;--danger-tint:#FBEDEC;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+       font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:440px;margin:0 auto;padding:18px 16px 60px}
+  /* A letterhead rather than a line of text. The page is the first thing a
+     patient sees of the clinic and it was reading like a form on a intranet. */
+  header{text-align:center;padding:22px 16px 20px;margin:0 0 18px;
+    background:var(--card);border:1px solid var(--rule);border-radius:14px;
+    box-shadow:0 1px 2px rgba(20,49,47,.05)}
+  header img{max-height:66px;max-width:190px;margin:0 auto 10px;display:block;
+    object-fit:contain}
+  header h1{font-size:22px;margin:0 0 4px;font-weight:600;line-height:1.25}
+  header p{margin:0;font-size:12.5px;color:var(--soft);line-height:1.5}
+  header p + p{margin-top:2px}
+  /* A quiet rule under the heading, the same device the clinic's receipts use,
+     so the booking page and the paperwork look like the same clinic. */
+  header::after{content:"";display:block;width:46px;height:2px;border-radius:2px;
+    background:var(--teal);margin:14px auto 0;opacity:.5}
+  .card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:12px}
+  label{display:block;font-size:11px;color:var(--soft);text-transform:uppercase;
+        letter-spacing:.05em;margin-bottom:4px}
+  input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 11px;
+        font:inherit;font-size:14px;background:#fff;color:var(--ink)}
+  textarea{resize:vertical;min-height:64px}
+  .fld{margin-bottom:12px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:6px}
+  .mode{border:1px solid var(--line);border-radius:10px;padding:11px 8px;background:var(--card);
+    font:inherit;font-size:13.5px;cursor:pointer;text-align:center;color:var(--ink);
+    display:flex;flex-direction:column;gap:3px;align-items:center}
+  .mode small{font-size:11.5px;color:var(--soft)}
+  .mode.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .mode.on small{color:rgba(255,255,255,.82)}
+  .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:6px}
+  .slot{border:1px solid var(--line);border-radius:8px;padding:9px 2px;text-align:center;
+        font-size:12.5px;background:#fff;cursor:pointer;font-variant-numeric:tabular-nums}
+  .slot[aria-pressed="true"]{background:var(--teal);color:#fff;border-color:var(--teal)}
+  /* A slot the clinic has already given away. Struck through and dimmed rather
+     than hidden: a gap in the grid reads as "the clinic is shut then", whereas
+     a crossed-out time reads as "that one has gone", which is the truth. */
+  .save-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+  .slot.taken{opacity:.45;text-decoration:line-through;cursor:not-allowed;
+    background:var(--paper,#f4f1ea)}
+  .slot.taken[aria-pressed="true"]{background:var(--paper,#f4f1ea);color:inherit;
+    border-color:var(--line)}
+  .btn{display:block;width:100%;border:none;border-radius:10px;padding:13px;font:inherit;
+       font-size:15px;font-weight:600;cursor:pointer;background:var(--teal);color:#fff;margin-top:6px}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn.ghost{background:transparent;color:var(--teal-dark);border:1px solid var(--rule)}
+  .btn.warn{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+  .note{border-radius:10px;padding:11px 12px;font-size:12.5px;line-height:1.5;margin-bottom:12px}
+  .note.warn{background:var(--tincture-tint);border:1px solid var(--tincture)}
+  .note.bad{background:var(--danger-tint);border:1px solid var(--danger);color:#7A2621}
+  .note.good{background:var(--teal-tint);border:1px solid var(--teal);color:var(--teal-dark)}
+  .status{text-align:center;border-radius:12px;padding:16px}
+  .status .tag{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+  .status h2{margin:6px 0 4px;font-size:19px}
+  .status p{margin:0;font-size:13px;line-height:1.5}
+  .pending{background:var(--tincture-tint);border:1px solid var(--tincture)}
+  .pending .tag{color:var(--tincture)}
+  .confirmed{background:var(--teal-tint);border:1px solid var(--teal)}
+  .confirmed .tag{color:var(--teal-dark)}
+  .cancelled{background:var(--danger-tint);border:1px solid var(--danger)}
+  .cancelled .tag{color:var(--danger)}
+  .ref{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+       word-break:break-all;background:#fff;border:1px solid var(--line);
+       border-radius:8px;padding:9px 10px}
+  .qr{margin:10px auto;width:192px;height:192px;background:#fff;padding:6px;
+      box-shadow:0 0 0 1px var(--line)}
+  .qr img,.qr canvas{display:block;width:180px;height:180px}
+  /* .consent is a <label>, so it inherited the uppercase field-label style
+     and rendered as shouting teal capitals. */
+  .consent{text-transform:none;letter-spacing:normal;font-size:12px;color:var(--soft);display:flex;gap:9px;align-items:flex-start;font-size:12px;color:var(--soft);
+           line-height:1.45;margin-top:10px}
+  .consent input{width:16px;height:16px;flex:none;margin-top:1px}
+  .err{color:var(--danger);font-size:12px;margin-top:5px}
+  .muted{font-size:11.5px;color:var(--soft);text-align:center;margin-top:10px;line-height:1.5}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <!-- The logo is optional and hidden until one is actually published, so a
+         clinic that has not uploaded one gets a clean header rather than a
+         broken-image gap. -->
+    <img id="clinicLogo" alt="" hidden>
+    <h1 id="clinicName">Book an appointment</h1>
+    <p id="clinicAddr"></p>
+    <p id="clinicPhone" hidden></p>
+  </header>
+
+  <div id="boot" class="note warn">Loading…</div>
+
+  <!-- booking form -->
+  <div id="formView" hidden>
+    <div id="closedNote" class="note bad" hidden></div>
+    <div class="card">
+      <div class="fld" id="modeWrap"><label>What kind of appointment?</label>
+        <div id="modeRow" class="modes" hidden></div></div>
+      <div class="two">
+        <div class="fld"><label for="f_name">Name</label><input id="f_name" maxlength="80" autocomplete="name"></div>
+        <div class="fld"><label for="f_mobile">Mobile</label><input id="f_mobile" maxlength="20" inputmode="tel" autocomplete="tel"></div>
+      </div>
+      <div class="two">
+        <div class="fld"><label for="f_age">Age</label><input id="f_age" type="number" min="0" max="130" inputmode="numeric"></div>
+        <div class="fld"><label for="f_gender">Gender</label>
+          <select id="f_gender"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select>
+        </div>
+      </div>
+      <div class="fld"><label for="f_reason">Reason for visit</label>
+        <textarea id="f_reason" maxlength="300" placeholder="A short description helps the doctor prepare"></textarea></div>
+      <div class="fld"><label for="f_date">Date</label><input id="f_date" type="date"></div>
+      <div id="dayNote" class="note warn" hidden></div>
+      <div class="fld"><label>Choose a time</label><div id="slots" class="slots"></div></div>
+    </div>
+
+    <div class="card" id="payCard" hidden>
+      <label>Payment</label>
+      <div id="payLine" style="font-size:14px;text-align:center;margin-bottom:4px"></div>
+      <div id="qr" class="qr" role="img" aria-label="UPI payment QR code" hidden></div>
+      <div class="muted">Or pay at the clinic.</div>
+    </div>
+
+    <div class="card">
+      <label class="consent" for="f_consent">
+        <input type="checkbox" id="f_consent">
+        <span>I've read how the clinic handles my information, and agree to be contacted about this appointment.</span>
+      </label>
+      <div id="formErr" class="err" hidden></div>
+      <button class="btn" id="submitBtn">Request this appointment</button>
+      <div class="muted">The clinic will confirm. Nothing is booked until they do.</div>
+    </div>
+  </div>
+
+  <!-- A returning patient who has their reference but not their link. Deliberately
+       a reference box and NOT a "find my booking by phone number" search: the
+       public may only read ONE booking at a time by id (see the security rules),
+       because a lookup by mobile would let anyone confirm whether a given person
+       has an appointment, and hand them the token that opens it. -->
+  <div id="lookupCard" class="card">
+    <div class="fld"><label for="f_lookup">Already booked? Track your appointment</label>
+      <input id="f_lookup" type="text" placeholder="Paste your reference" autocomplete="off"></div>
+    <button class="btn ghost" id="lookupBtn" type="button">Find my booking</button>
+    <div id="lookupErr" class="err" hidden></div>
+  </div>
+
+  <!-- status of an existing booking -->
+  <div id="statusView" hidden>
+    <div class="card">
+      <div id="statusBox" class="status"></div>
+      <div id="statusDetail" style="margin-top:12px"></div>
+      <div class="fld" style="margin-top:12px"><label>Your reference — keep this</label>
+        <div class="ref" id="refText"></div></div>
+
+      <!-- Losing the reference was the single most common way a patient lost
+           track of their booking: they booked, closed the browser, and had
+           nothing. The link is remembered in this browser, but that is gone the
+           moment they switch device or clear their data. These buttons put the
+           link somewhere the patient actually keeps things. -->
+      <div class="note" style="margin-top:12px">
+        Save your booking link so you can check or cancel it later.
+      </div>
+      <div class="save-row">
+        <button class="btn ghost" id="waBtn" type="button">Send to WhatsApp</button>
+        <button class="btn ghost" id="smsBtn" type="button">Send by SMS</button>
+      </div>
+      <div class="save-row">
+        <button class="btn ghost" id="copyBtn" type="button">Copy link</button>
+        <button class="btn ghost" id="icsBtn" type="button">Add to calendar</button>
+      </div>
+      <div class="save-row">
+        <button class="btn ghost" id="pdfBtn" type="button">Download slip (PDF)</button>
+      </div>
+
+      <button class="btn warn" id="cancelBtn" hidden>Cancel this booking</button>
+      <button class="btn ghost" id="againBtn">Book another appointment</button>
+      <div id="statusErr" class="err" hidden></div>
+    </div>
+  </div>
+</div>
+
+<script src="./clinic-config.js?v=1"></script>
+<script src="./vendor/qrcode.min.js?v=1.0.0"></script>
+<script type="module" src="./book.js?v=4"></script>
+</body>
+</html>
